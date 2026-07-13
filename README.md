@@ -6,7 +6,13 @@
 
 一个开源的 Codex 用量监控器：在 Codex 中查询套餐余额和 Token 活动，也可以通过 macOS 菜单栏与悬浮面板持续查看 5 小时/7 天窗口。
 
-> 社区工具，非 OpenAI 官方产品。项目由 [qupengkun](https://github.com/qupengkun) 维护。
+> 社区工具，非 OpenAI 官方产品。项目由 [qcodingdev](https://github.com/qcodingdev) 维护。
+
+## 使用效果
+
+![Codex Usage Monitor 演示](docs/assets/codex-usage-monitor-demo.gif)
+
+上图是经过遮盖处理的示例动画，仅用于展示悬浮窗布局和刷新效果，不包含真实账号用量、日期、桌面窗口或登录信息。
 
 ## 功能
 
@@ -22,7 +28,7 @@
 | 版本 | 状态 | 支持平台 |
 | --- | --- | --- |
 | v0.1.0 | macOS MVP | macOS 13+；当前 Release 附带 x86_64 构建，Apple Silicon 可从源码构建 |
-| Windows | 规划中 | 托盘和悬浮窗将复用相同的协议读取逻辑 |
+| Windows | 规划中 | 尚未发布 |
 
 ## 安装
 
