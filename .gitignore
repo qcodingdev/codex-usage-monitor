@@ -1,0 +1,13 @@
+.DS_Store
+.build/
+build/
+*.xcodeproj/xcuserdata/
+apps/macos/build/
+dist/
+apps/windows/bin/
+apps/windows/obj/
+*.user
+*.suo
+*.log
+.env
+.env.*
