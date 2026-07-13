@@ -28,7 +28,7 @@
 
 ### macOS 桌面程序
 
-从 [Releases](../../releases) 下载 `Codex-Usage-Monitor-macOS.zip`，解压后打开应用。应用会优先使用 PATH 中的 `codex`，然后检查常见 CLI 路径和 ChatGPT.app 内置 CLI。
+从 [Releases](https://github.com/qcodingdev/codex-usage-monitor/releases) 下载 `Codex-Usage-Monitor-macOS.zip`，解压后打开应用。应用会优先使用 PATH 中的 `codex`，然后检查常见 CLI 路径和 ChatGPT.app 内置 CLI。
 
 ### Codex 插件
 
