@@ -23,6 +23,12 @@ chmod +x build.sh
 
 应用会优先尝试本地 CLI，并自动回退到 ChatGPT.app 内置的 `codex`。因此只安装桌面版也可以运行。
 
+构建产物中的 ZIP 包含双击安装程序。安装后可从 Spotlight 搜索 `Codex Usage Monitor`，也可以运行：
+
+```bash
+codex-usage-monitor
+```
+
 如果你的桌面版安装在非标准位置，可以从终端运行：
 
 ```bash

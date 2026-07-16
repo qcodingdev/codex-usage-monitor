@@ -25,7 +25,7 @@ jobs:
       - name: Package plugin
         run: |
           mkdir -p dist
-          ditto -c -k --sequesterRsrc --keepParent apps/macos/build/Codex\ Usage\ Monitor.app dist/Codex-Usage-Monitor-macOS.zip
+          cp apps/macos/build/Codex-Usage-Monitor-macOS.zip dist/Codex-Usage-Monitor-macOS.zip
           ditto -c -k --sequesterRsrc --keepParent plugin dist/codex-usage-monitor-plugin.zip
 
       - name: Create GitHub release

@@ -1,16 +1,16 @@
 {
   "name": "codex-usage-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Monitor Codex plan balance, rate-limit windows, credits, and account token activity from the menu bar or Codex.",
   "author": {
-    "name": "qupengkun"
+    "name": "qcodingdev"
   },
   "skills": "./skills/",
   "interface": {
     "displayName": "Codex Usage Monitor",
     "shortDescription": "View Codex balance and Token activity.",
     "longDescription": "Read Codex plan windows, credit balance, reset times, and account Token activity through the local Codex app-server. Includes a macOS menu-bar and floating-panel monitor.",
-    "developerName": "qupengkun",
+    "developerName": "qcodingdev",
     "category": "Productivity",
     "capabilities": [],
     "defaultPrompt": "Show my current Codex plan balance and Token activity."

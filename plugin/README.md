@@ -16,6 +16,12 @@
 zsh scripts/launch-monitor.sh
 ```
 
-浮窗每 60 秒刷新。点击“最小化”只隐藏面板并保留菜单栏图标；点击“退出”才会停止监控进程。程序会优先检查 CLI，并回退到 ChatGPT.app 内置的 `codex`，因此只有桌面版也可以运行。
+浮窗每 60 秒刷新。点击“最小化”只隐藏面板并保留菜单栏图标；点击“完全退出”才会停止监控进程。程序会优先检查 CLI，并回退到 ChatGPT.app 内置的 `codex`，因此只有桌面版也可以运行。
 
-Windows 伴侣程序尚未包含在 v0.1.0，见仓库中的 `apps/windows/README.md`。
+安装独立桌面应用后，也可以从“应用程序”或终端重新打开：
+
+```bash
+codex-usage-monitor
+```
+
+Windows 伴侣程序尚未包含在 v0.1.1，见仓库中的 `apps/windows/README.md`。

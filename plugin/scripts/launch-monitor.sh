@@ -2,11 +2,18 @@
 set -euo pipefail
 
 ROOT="${0:A:h:h}"
-APP="$ROOT/assets/Codex Usage Monitor.app"
+APP_NAME="Codex Usage Monitor.app"
 
-if [[ ! -d "$APP" ]]; then
-  echo "找不到 $APP" >&2
-  exit 1
-fi
+for APP in \
+  "$HOME/Applications/$APP_NAME" \
+  "/Applications/$APP_NAME" \
+  "$ROOT/assets/$APP_NAME"
+do
+  if [[ -d "$APP" ]]; then
+    open "$APP"
+    exit 0
+  fi
+done
 
-open "$APP"
+echo "找不到 $APP_NAME；请先安装桌面应用或重新安装插件。" >&2
+exit 1

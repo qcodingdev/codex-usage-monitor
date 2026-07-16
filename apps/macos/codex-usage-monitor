@@ -1,0 +1,52 @@
+#!/bin/zsh
+set -euo pipefail
+
+APP_NAME="Codex Usage Monitor.app"
+BUNDLE_ID="local.codex.usage-monitor"
+
+resolve_app() {
+  local candidate
+  for candidate in \
+    "${CODEX_USAGE_MONITOR_APP:-}" \
+    "$HOME/Applications/$APP_NAME" \
+    "/Applications/$APP_NAME"
+  do
+    if [[ -n "$candidate" && -d "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+command="${1:-open}"
+case "$command" in
+  open|start|show)
+    if app="$(resolve_app)"; then
+      open "$app"
+    elif ! open -b "$BUNDLE_ID" 2>/dev/null; then
+      echo "找不到 $APP_NAME。请先运行安装程序，或将应用放入 ~/Applications。" >&2
+      exit 1
+    fi
+    ;;
+  status)
+    if pgrep -x CodexUsageMonitor >/dev/null; then
+      echo "Codex Usage Monitor 正在运行"
+    else
+      echo "Codex Usage Monitor 未运行"
+      exit 1
+    fi
+    ;;
+  location)
+    if app="$(resolve_app)"; then
+      echo "$app"
+    else
+      echo "未找到已安装的 Codex Usage Monitor" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "用法: codex-usage-monitor [open|start|show|status|location]" >&2
+    exit 2
+    ;;
+esac

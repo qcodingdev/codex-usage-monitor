@@ -370,7 +370,7 @@ private final class DashboardView: NSView {
     var isLoading = true { didSet { needsDisplay = true } }
     let refreshButton = NSButton(title: "立即刷新", target: nil, action: nil)
     let minimizeButton = NSButton(title: "最小化", target: nil, action: nil)
-    let quitButton = NSButton(title: "退出", target: nil, action: nil)
+    let quitButton = NSButton(title: "完全退出", target: nil, action: nil)
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -391,7 +391,7 @@ private final class DashboardView: NSView {
         super.layout()
         refreshButton.frame = NSRect(x: 22, y: 18, width: 88, height: 30)
         minimizeButton.frame = NSRect(x: 120, y: 18, width: 90, height: 30)
-        quitButton.frame = NSRect(x: bounds.width - 78, y: 18, width: 56, height: 30)
+        quitButton.frame = NSRect(x: bounds.width - 98, y: 18, width: 76, height: 30)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -547,6 +547,11 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         client.stop()
     }
 
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPanel()
+        return true
+    }
+
     private func buildStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -628,7 +633,18 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         return "\(value)"
     }
 
-    @objc private func quit() { NSApp.terminate(nil) }
+    @objc private func quit() {
+        let alert = NSAlert()
+        alert.messageText = "完全退出 Codex 用量监控？"
+        alert.informativeText = "退出后菜单栏图标会消失。你可以从“应用程序”重新打开，或在终端运行 codex-usage-monitor。若只是暂时隐藏，请使用“最小化”。"
+        alert.alertStyle = .informational
+        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: "完全退出")
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertSecondButtonReturn {
+            NSApp.terminate(nil)
+        }
+    }
 }
 
 @main

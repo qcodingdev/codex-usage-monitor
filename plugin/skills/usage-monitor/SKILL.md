@@ -33,6 +33,12 @@ zsh <plugin-root>/scripts/launch-monitor.sh
 
 Launching a GUI application may require user approval. The monitor refreshes every 60 seconds and can be dragged. Clicking its menu-bar item toggles the panel.
 
+When the standalone macOS app is installed, it can also be reopened from Applications or with:
+
+```bash
+codex-usage-monitor
+```
+
 ## Security boundary
 
 - Only call the read-only Codex app-server methods `account/rateLimits/read` and `account/usage/read`.

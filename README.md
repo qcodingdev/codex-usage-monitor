@@ -27,14 +27,33 @@
 
 | 版本 | 状态 | 支持平台 |
 | --- | --- | --- |
-| v0.1.0 | macOS MVP | macOS 13+；当前 Release 附带 x86_64 构建，Apple Silicon 可从源码构建 |
+| v0.1.1 | macOS MVP | macOS 13+；Universal 构建，支持 Intel 与 Apple Silicon |
 | Windows | 规划中 | 尚未发布 |
 
 ## 安装
 
 ### macOS 桌面程序
 
-从 [Releases](https://github.com/qcodingdev/codex-usage-monitor/releases) 下载 `Codex-Usage-Monitor-macOS.zip`，解压后打开应用。应用会优先使用 PATH 中的 `codex`，然后检查常见 CLI 路径和 ChatGPT.app 内置 CLI。
+从 [Releases](https://github.com/qcodingdev/codex-usage-monitor/releases) 下载 `Codex-Usage-Monitor-macOS.zip`，解压后双击 `Install Codex Usage Monitor.command`。安装程序会：
+
+- 把应用放入 `~/Applications`，以后可通过 Spotlight 或“应用程序”重新打开。
+- 安装 `~/.local/bin/codex-usage-monitor` 命令。
+- 安装完成后立即启动监控器。
+
+如果 `~/.local/bin` 已在 PATH 中，可以从终端直接运行：
+
+```bash
+codex-usage-monitor
+```
+
+也支持：
+
+```bash
+codex-usage-monitor status
+codex-usage-monitor location
+```
+
+“最小化”只隐藏面板，点击 macOS 菜单栏中的仪表图标即可恢复；“完全退出”会停止程序，之后可从应用程序或 CLI 重新启动。
 
 ### Codex 插件
 
@@ -74,8 +93,8 @@ chmod +x build.sh
 
 ## 版本路线
 
-- `v0.1.0`：macOS 开源 MVP。
-- `v0.2.0`：Windows 托盘/悬浮窗版本。
+- `v0.1.1`：macOS 安装与 CLI 启动入口。
+- `v0.2.0`：Windows 规划中。
 - `v0.3.0`：跨平台安装器、签名和自动更新。
 - `v1.0.0`：稳定协议适配和官方插件提交准备。
 
