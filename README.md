@@ -20,6 +20,7 @@
 - 显示套餐类型、Credits、今日 Token、累计 Token 和活跃信息。
 - 同时支持 Codex Desktop 和 Codex CLI 共用的本地账户数据。
 - macOS 菜单栏、可拖动悬浮窗、最小化和退出控制。
+- 首次启动读取失败时自动清理连接并重试，不需要手动点击刷新。
 - CLI 不存在时自动尝试 ChatGPT.app 内置的 `codex`；两者都不存在才提示错误。
 - 只调用本地 app-server 的只读方法，不抓取网页、不读取登录文件。
 
@@ -27,7 +28,7 @@
 
 | 版本 | 状态 | 支持平台 |
 | --- | --- | --- |
-| v0.1.1 | macOS MVP | macOS 13+；Universal 构建，支持 Intel 与 Apple Silicon |
+| v0.1.2 | macOS MVP | macOS 13+；Universal 构建，支持 Intel 与 Apple Silicon |
 | Windows | 规划中 | 尚未发布 |
 
 ## 安装
@@ -93,7 +94,7 @@ chmod +x build.sh
 
 ## 版本路线
 
-- `v0.1.1`：macOS 安装与 CLI 启动入口。
+- `v0.1.2`：启动自动重连，修复首次打开暂不可用。
 - `v0.2.0`：Windows 规划中。
 - `v0.3.0`：跨平台安装器、签名和自动更新。
 - `v1.0.0`：稳定协议适配和官方插件提交准备。

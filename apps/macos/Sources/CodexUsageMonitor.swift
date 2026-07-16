@@ -69,11 +69,13 @@ private final class AppServerClient {
 
     func stop() {
         queue.sync {
-            input?.closeFile()
-            process?.terminate()
-            input = nil
-            process = nil
-            initialized = false
+            disconnectLocked(error: nil)
+        }
+    }
+
+    func resetConnection() {
+        queue.sync {
+            disconnectLocked(error: MonitorError.appServerExited)
         }
     }
 
@@ -95,7 +97,7 @@ private final class AppServerClient {
                         "clientInfo": [
                             "name": "codex-usage-monitor",
                             "title": "Codex Usage Monitor",
-                            "version": "0.1.0",
+                            "version": "0.1.2",
                         ],
                         "capabilities": ["experimentalApi": true],
                     ]
@@ -103,7 +105,7 @@ private final class AppServerClient {
                     guard let self else { return }
                     switch result {
                     case .failure(let error):
-                        self.finishReadyLocked(.failure(error))
+                        self.disconnectLocked(error: error)
                     case .success:
                         self.sendLocked(["method": "initialized"])
                         self.initialized = true
@@ -111,7 +113,7 @@ private final class AppServerClient {
                     }
                 }
             } catch {
-                self.finishReadyLocked(.failure(error))
+                self.disconnectLocked(error: error)
             }
         }
     }
@@ -139,8 +141,8 @@ private final class AppServerClient {
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
             _ = handle.availableData
         }
-        process.terminationHandler = { [weak self] _ in
-            self?.queue.async { self?.handleExitLocked() }
+        process.terminationHandler = { [weak self] exitedProcess in
+            self?.queue.async { self?.handleExitLocked(exitedProcess) }
         }
 
         try process.run()
@@ -239,14 +241,33 @@ private final class AppServerClient {
         }
     }
 
-    private func handleExitLocked() {
-        let callbacks = pending.values
+    private func handleExitLocked(_ exitedProcess: Process) {
+        guard let currentProcess = process, currentProcess === exitedProcess else { return }
+        disconnectLocked(error: MonitorError.appServerExited)
+    }
+
+    private func disconnectLocked(error: Error?) {
+        let callbacks = Array(pending.values)
+        let waiters = readyWaiters
         pending.removeAll()
+        readyWaiters.removeAll()
         initialized = false
+        outputBuffer.removeAll(keepingCapacity: true)
+
+        let currentInput = input
+        let currentProcess = process
         input = nil
         process = nil
-        callbacks.forEach { $0(.failure(MonitorError.appServerExited)) }
-        finishReadyLocked(.failure(MonitorError.appServerExited))
+        currentProcess?.terminationHandler = nil
+        currentInput?.closeFile()
+        if currentProcess?.isRunning == true {
+            currentProcess?.terminate()
+        }
+
+        if let error {
+            callbacks.forEach { $0(.failure(error)) }
+            waiters.forEach { $0(.failure(error)) }
+        }
     }
 
     private func finishReadyLocked(_ result: Result<Void, Error>) {
@@ -532,6 +553,10 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dashboard: DashboardView!
     private var statusItem: NSStatusItem!
     private var timer: Timer?
+    private let retryDelays: [TimeInterval] = [0.75, 1.5, 3]
+    private var refreshGeneration = 0
+    private var refreshInFlight = false
+    private var retryWorkItem: DispatchWorkItem?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -544,6 +569,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         timer?.invalidate()
+        retryWorkItem?.cancel()
         client.stop()
     }
 
@@ -601,17 +627,36 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.orderFrontRegardless()
     }
 
-    @objc private func refreshNow() { refresh() }
+    @objc private func refreshNow() {
+        guard !refreshInFlight else { return }
+        retryWorkItem?.cancel()
+        retryWorkItem = nil
+        refresh()
+    }
 
     @objc private func minimizePanel() { panel.orderOut(nil) }
 
     private func refresh() {
+        guard !refreshInFlight, retryWorkItem == nil else { return }
+        refreshGeneration += 1
+        refresh(attempt: 0, generation: refreshGeneration)
+    }
+
+    private func refresh(attempt: Int, generation: Int) {
+        guard generation == refreshGeneration else { return }
+        refreshInFlight = true
         dashboard.isLoading = true
+        dashboard.errorMessage = nil
+        statusItem.button?.title = attempt == 0 ? " 正在读取…" : " 正在重连…"
+
         client.fetch { [weak self] result in
             guard let self else { return }
-            self.dashboard.isLoading = false
+            guard generation == self.refreshGeneration else { return }
+            self.refreshInFlight = false
             switch result {
             case .success(let snapshot):
+                self.retryWorkItem = nil
+                self.dashboard.isLoading = false
                 self.dashboard.snapshot = snapshot
                 self.dashboard.errorMessage = nil
                 if let window = snapshot.fiveHour ?? snapshot.sevenDay {
@@ -621,6 +666,27 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
                     self.statusItem.button?.title = " 暂无数据"
                 }
             case .failure(let error):
+                if attempt < self.retryDelays.count {
+                    self.dashboard.isLoading = true
+                    self.dashboard.errorMessage = nil
+                    self.statusItem.button?.title = " 正在重连…"
+                    self.client.resetConnection()
+
+                    let workItem = DispatchWorkItem { [weak self] in
+                        guard let self, generation == self.refreshGeneration else { return }
+                        self.retryWorkItem = nil
+                        self.refresh(attempt: attempt + 1, generation: generation)
+                    }
+                    self.retryWorkItem = workItem
+                    DispatchQueue.main.asyncAfter(
+                        deadline: .now() + self.retryDelays[attempt],
+                        execute: workItem
+                    )
+                    return
+                }
+
+                self.client.resetConnection()
+                self.dashboard.isLoading = false
                 self.dashboard.errorMessage = error.localizedDescription
                 self.statusItem.button?.title = " 暂不可用"
             }

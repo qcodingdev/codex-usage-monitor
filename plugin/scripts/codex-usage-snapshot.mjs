@@ -3,6 +3,8 @@ import { execFileSync, spawn } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import readline from "node:readline";
 
+const RETRY_DELAYS_MS = [750, 1_500, 3_000];
+
 function resolveCodexPath() {
   const home = process.env.HOME || "";
   const candidates = [
@@ -36,60 +38,75 @@ function resolveCodexPath() {
   return candidates.find((candidate) => existsSync(candidate)) || null;
 }
 
-const codexPath = resolveCodexPath();
-if (!codexPath) {
-  process.stderr.write("找不到 Codex app-server；已检查 CLI 和 ChatGPT.app\n");
-  process.exit(1);
-}
+function readSnapshot(codexPath) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(codexPath, ["app-server", "--stdio"], {
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    const pending = new Map();
+    let nextId = 1;
+    let settled = false;
 
-const child = spawn(codexPath, ["app-server", "--stdio"], {
-  stdio: ["pipe", "pipe", "ignore"],
-});
-const pending = new Map();
-let nextId = 1;
-let settled = false;
+    const timeout = setTimeout(() => finish(new Error("读取 Codex 用量超时")), 15_000);
 
-const timeout = setTimeout(() => finish(new Error("读取 Codex 用量超时")), 15_000);
-
-function send(message) {
-  child.stdin.write(`${JSON.stringify(message)}\n`);
-}
-
-function request(method, params) {
-  const id = nextId++;
-  send({ id, method, params });
-  return new Promise((resolve, reject) => pending.set(id, { resolve, reject }));
-}
-
-function finish(error) {
-  if (settled) return;
-  settled = true;
-  clearTimeout(timeout);
-  child.kill("SIGTERM");
-  if (error) {
-    process.stderr.write(`${error.message}\n`);
-    process.exitCode = 1;
-  }
-}
-
-readline.createInterface({ input: child.stdout }).on("line", (line) => {
-  try {
-    const message = JSON.parse(line);
-    if (message.id !== undefined && pending.has(message.id)) {
-      const callback = pending.get(message.id);
-      pending.delete(message.id);
-      if (message.error) callback.reject(new Error(JSON.stringify(message.error)));
-      else callback.resolve(message.result);
+    function send(message) {
+      child.stdin.write(`${JSON.stringify(message)}\n`);
     }
-  } catch {
-    // Ignore non-protocol output.
-  }
-});
 
-child.on("error", (error) => finish(error));
-child.on("exit", (code) => {
-  if (!settled && code !== 0) finish(new Error(`Codex app-server 已退出（${code}）`));
-});
+    function request(method, params) {
+      const id = nextId++;
+      return new Promise((requestResolve, requestReject) => {
+        pending.set(id, { resolve: requestResolve, reject: requestReject });
+        send({ id, method, params });
+      });
+    }
+
+    function finish(error, snapshot) {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      child.kill("SIGTERM");
+      if (error) reject(error);
+      else resolve(snapshot);
+    }
+
+    readline.createInterface({ input: child.stdout }).on("line", (line) => {
+      try {
+        const message = JSON.parse(line);
+        if (message.id !== undefined && pending.has(message.id)) {
+          const callback = pending.get(message.id);
+          pending.delete(message.id);
+          if (message.error) callback.reject(new Error(JSON.stringify(message.error)));
+          else callback.resolve(message.result);
+        }
+      } catch {
+        // Ignore non-protocol output.
+      }
+    });
+
+    child.on("error", (error) => finish(error));
+    child.on("exit", (code) => {
+      if (!settled) finish(new Error(`Codex app-server 已退出（${code ?? "未知"}）`));
+    });
+
+    (async () => {
+      try {
+        await request("initialize", {
+          clientInfo: { name: "codex-usage-monitor", version: "0.1.2" },
+          capabilities: { experimentalApi: true },
+        });
+        send({ method: "initialized" });
+        const [rateResponse, usageResponse] = await Promise.all([
+          request("account/rateLimits/read", null),
+          request("account/usage/read", null),
+        ]);
+        finish(null, makeSnapshot(rateResponse, usageResponse));
+      } catch (error) {
+        finish(error);
+      }
+    })();
+  });
+}
 
 function remaining(window) {
   return Math.max(0, 100 - Number(window?.usedPercent || 0));
@@ -122,17 +139,7 @@ function normalizeWindow(value) {
   };
 }
 
-try {
-  await request("initialize", {
-    clientInfo: { name: "codex-usage-monitor", version: "0.1.0" },
-    capabilities: { experimentalApi: true },
-  });
-  send({ method: "initialized" });
-  const [rateResponse, usageResponse] = await Promise.all([
-    request("account/rateLimits/read", null),
-    request("account/usage/read", null),
-  ]);
-
+function makeSnapshot(rateResponse, usageResponse) {
   const rate = rateResponse.rateLimitsByLimitId?.codex || rateResponse.rateLimits || {};
   const windows = [normalizeWindow(rate.primary), normalizeWindow(rate.secondary)].filter(Boolean);
   const fiveHour = windows.find((window) => Number(window.windowDurationMins || 0) > 0 && Number(window.windowDurationMins) <= 720) || null;
@@ -141,7 +148,7 @@ try {
   const fallbackSevenDay = sevenDay || (!fiveHour ? windows[1] || null : null);
   const todayKey = new Intl.DateTimeFormat("en-CA").format(new Date());
   const today = usageResponse.dailyUsageBuckets?.find((item) => item.startDate === todayKey)?.tokens || 0;
-  const snapshot = {
+  return {
     plan: rate.planType || "unknown",
     fiveHour: fallbackFiveHour,
     sevenDay: fallbackSevenDay,
@@ -152,21 +159,48 @@ try {
     summary: usageResponse.summary || {},
     updatedAt: new Date().toISOString(),
   };
+}
 
+function printSnapshot(snapshot) {
   if (process.argv.includes("--json")) {
     process.stdout.write(`${JSON.stringify(snapshot, null, 2)}\n`);
-  } else {
-    const credits = snapshot.credits?.unlimited ? "无限" : (snapshot.credits?.balance || "0");
-    process.stdout.write([
-      `套餐：${snapshot.plan}`,
-      `5 小时窗口：${snapshot.fiveHour ? `剩余 ${snapshot.fiveHour.remainingPercent}%（重置 ${resetText(snapshot.fiveHour.resetsAt)}）` : "暂无数据"}`,
-      `7 天窗口：${snapshot.sevenDay ? `剩余 ${snapshot.sevenDay.remainingPercent}%（重置 ${resetText(snapshot.sevenDay.resetsAt)}）` : "暂无数据"}`,
-      `Credits：${credits}`,
-      `今日 Token：${tokenText(snapshot.todayTokens)}`,
-      `累计 Token：${tokenText(snapshot.summary.lifetimeTokens)}`,
-    ].join("\n") + "\n");
+    return;
   }
-  finish();
-} catch (error) {
-  finish(error);
+
+  const credits = snapshot.credits?.unlimited ? "无限" : (snapshot.credits?.balance || "0");
+  process.stdout.write([
+    `套餐：${snapshot.plan}`,
+    `5 小时窗口：${snapshot.fiveHour ? `剩余 ${snapshot.fiveHour.remainingPercent}%（重置 ${resetText(snapshot.fiveHour.resetsAt)}）` : "暂无数据"}`,
+    `7 天窗口：${snapshot.sevenDay ? `剩余 ${snapshot.sevenDay.remainingPercent}%（重置 ${resetText(snapshot.sevenDay.resetsAt)}）` : "暂无数据"}`,
+    `Credits：${credits}`,
+    `今日 Token：${tokenText(snapshot.todayTokens)}`,
+    `累计 Token：${tokenText(snapshot.summary.lifetimeTokens)}`,
+  ].join("\n") + "\n");
 }
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+const codexPath = resolveCodexPath();
+if (!codexPath) {
+  process.stderr.write("找不到 Codex app-server；已检查 CLI 和 ChatGPT.app\n");
+  process.exit(1);
+}
+
+let lastError;
+for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+  try {
+    const snapshot = await readSnapshot(codexPath);
+    printSnapshot(snapshot);
+    process.exit(0);
+  } catch (error) {
+    lastError = error;
+    if (attempt < RETRY_DELAYS_MS.length) {
+      await delay(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+}
+
+process.stderr.write(`${lastError?.message || "读取 Codex 用量失败"}\n`);
+process.exit(1);
