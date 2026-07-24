@@ -138,11 +138,16 @@ private final class AppServerClient {
 
         stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty else { return }
+            guard !data.isEmpty else {
+                handle.readabilityHandler = nil
+                return
+            }
             self?.queue.async { self?.consumeLocked(data) }
         }
         stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-            _ = handle.availableData
+            if handle.availableData.isEmpty {
+                handle.readabilityHandler = nil
+            }
         }
         process.terminationHandler = { [weak self] exitedProcess in
             self?.queue.async { self?.handleExitLocked(exitedProcess) }

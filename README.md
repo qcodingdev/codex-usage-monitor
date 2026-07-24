@@ -29,7 +29,7 @@
 
 | 版本 | 状态 | 支持平台 |
 | --- | --- | --- |
-| v0.1.3 | macOS MVP | macOS 13+；Universal 构建，支持 Intel 与 Apple Silicon |
+| v0.1.4 | macOS MVP | macOS 13+；Universal 构建，支持 Intel 与 Apple Silicon |
 | Windows | 规划中 | 尚未发布 |
 
 ## 安装
@@ -95,7 +95,7 @@ chmod +x build.sh
 
 ## 版本路线
 
-- `v0.1.3`：降低空闲内存，并在面板最小化后降低后台刷新频率。
+- `v0.1.4`：降低空闲内存，并修复 app-server 退出后的 CPU 占用。
 - `v0.2.0`：Windows 规划中。
 - `v0.3.0`：跨平台安装器、签名和自动更新。
 - `v1.0.0`：稳定协议适配和官方插件提交准备。

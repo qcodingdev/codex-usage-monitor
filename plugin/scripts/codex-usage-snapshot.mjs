@@ -92,7 +92,7 @@ function readSnapshot(codexPath) {
     (async () => {
       try {
         await request("initialize", {
-          clientInfo: { name: "codex-usage-monitor", version: "0.1.3" },
+          clientInfo: { name: "codex-usage-monitor", version: "0.1.4" },
           capabilities: { experimentalApi: true },
         });
         send({ method: "initialized" });
