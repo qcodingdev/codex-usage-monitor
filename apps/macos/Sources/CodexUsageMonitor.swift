@@ -50,6 +50,8 @@ private final class AppServerClient {
     private var initialized = false
     private var pending: [Int: (Result<[String: Any], Error>) -> Void] = [:]
     private var readyWaiters: [(Result<Void, Error>) -> Void] = []
+    private var idleStopWorkItem: DispatchWorkItem?
+    private let idleTimeout: TimeInterval = 10
 
     deinit {
         stop()
@@ -81,6 +83,7 @@ private final class AppServerClient {
 
     private func ensureConnected(completion: @escaping (Result<Void, Error>) -> Void) {
         queue.async {
+            self.cancelIdleStopLocked()
             if self.initialized, self.process?.isRunning == true {
                 completion(.success(()))
                 return
@@ -97,7 +100,7 @@ private final class AppServerClient {
                         "clientInfo": [
                             "name": "codex-usage-monitor",
                             "title": "Codex Usage Monitor",
-                            "version": "0.1.2",
+                            "version": "0.1.3",
                         ],
                         "capabilities": ["experimentalApi": true],
                     ]
@@ -168,6 +171,7 @@ private final class AppServerClient {
                 finished = true
                 do {
                     let snapshot = try Self.makeSnapshot(rate: rateResult, usage: usageResult)
+                    self.scheduleIdleStopLocked()
                     DispatchQueue.main.async { completion(.success(snapshot)) }
                 } catch {
                     DispatchQueue.main.async { completion(.failure(error)) }
@@ -246,7 +250,24 @@ private final class AppServerClient {
         disconnectLocked(error: MonitorError.appServerExited)
     }
 
+    private func scheduleIdleStopLocked() {
+        cancelIdleStopLocked()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.idleStopWorkItem = nil
+            self.disconnectLocked(error: nil)
+        }
+        idleStopWorkItem = workItem
+        queue.asyncAfter(deadline: .now() + idleTimeout, execute: workItem)
+    }
+
+    private func cancelIdleStopLocked() {
+        idleStopWorkItem?.cancel()
+        idleStopWorkItem = nil
+    }
+
     private func disconnectLocked(error: Error?) {
+        cancelIdleStopLocked()
         let callbacks = Array(pending.values)
         let waiters = readyWaiters
         pending.removeAll()
@@ -553,6 +574,8 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     private var dashboard: DashboardView!
     private var statusItem: NSStatusItem!
     private var timer: Timer?
+    private let visibleRefreshInterval: TimeInterval = 60
+    private let hiddenRefreshInterval: TimeInterval = 180
     private let retryDelays: [TimeInterval] = [0.75, 1.5, 3]
     private var refreshGeneration = 0
     private var refreshInFlight = false
@@ -564,7 +587,6 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         buildPanel()
         showPanel()
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in self?.refresh() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -615,7 +637,12 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func togglePanel() {
-        panel.isVisible ? panel.orderOut(nil) : showPanel()
+        if panel.isVisible {
+            panel.orderOut(nil)
+            updateRefreshSchedule()
+        } else {
+            showPanel()
+        }
     }
 
     private func showPanel() {
@@ -625,6 +652,7 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
             if !panel.isVisible { panel.setFrameOrigin(origin) }
         }
         panel.orderFrontRegardless()
+        updateRefreshSchedule()
     }
 
     @objc private func refreshNow() {
@@ -634,7 +662,18 @@ private final class AppDelegate: NSObject, NSApplicationDelegate {
         refresh()
     }
 
-    @objc private func minimizePanel() { panel.orderOut(nil) }
+    @objc private func minimizePanel() {
+        panel.orderOut(nil)
+        updateRefreshSchedule()
+    }
+
+    private func updateRefreshSchedule() {
+        timer?.invalidate()
+        let interval = panel.isVisible ? visibleRefreshInterval : hiddenRefreshInterval
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.refresh()
+        }
+    }
 
     private func refresh() {
         guard !refreshInFlight, retryWorkItem == nil else { return }

@@ -1,6 +1,6 @@
 {
   "name": "codex-usage-monitor",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Monitor Codex plan balance, rate-limit windows, credits, and account token activity from the menu bar or Codex.",
   "author": {
     "name": "qcodingdev"
